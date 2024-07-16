@@ -2,11 +2,19 @@ const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(
+   cors({
+      origin: ["http://localhost:5173"],
+      witCredentials: true,
+   })
+);
 app.use(express.json());
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.SECRET_KEY_USER}:${process.env.SECRET_KEY_PASS}@cluster0.gv1gxa1.mongodb.net/?appName=Cluster0`;
 
@@ -23,6 +31,18 @@ async function run() {
    try {
       // Connect the client to the server	(optional starting in v4.7)
       await client.connect();
+
+      app.post("/jwt", async (req, res) => {
+         const user = req.body;
+         console.log(user);
+         const token = jwt.sign(user, process.env.SECRET_KEY_TOKEN, { expiresIn: "1h" });
+         res
+         .cookie("token", token, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "none",
+         }).send({ success: true });
+      });
       // Send a ping to confirm a successful connection
       const roomCollection = client.db("Hotel").collection("rooms");
       const bookingCollection = client.db("Hotel").collection("booking");
@@ -48,6 +68,8 @@ async function run() {
 
       app.get("/bookings", async (req, res) => {
          let query = {};
+         console.log('token',req.cookies.token)
+
          if (req.query?.email) {
             query = { email: req.query.email };
          }
@@ -73,7 +95,8 @@ async function run() {
                guest: updateBooking.guest,
             },
          };
-         const result = await bookingCollection.updateOne(query, updateDoc)
+         const result = await bookingCollection.updateOne(query, updateDoc);
+         res.send(result)
       });
 
       await client.db("admin").command({ ping: 1 });
