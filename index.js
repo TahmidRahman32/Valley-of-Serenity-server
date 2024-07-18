@@ -57,6 +57,7 @@ async function run() {
       // Send a ping to confirm a successful connection
       const roomCollection = client.db("Hotel").collection("rooms");
       const bookingCollection = client.db("Hotel").collection("booking");
+      const reviewCollection = client.db("Hotel").collection("reviews");
 
         app.post("/jwt", async (req, res) => {
            const user = req.body;
@@ -78,9 +79,9 @@ async function run() {
         
          // const result =  courser
            const options = {
-              // Sort returned documents in ascending order by title (A->Z)
+              
               sort: { title: 1, price_per_night: 0 },
-              // Include only the `title` and `imdb` fields in each returned document
+              
               projection: { title: 1,  },
            };
             const result = await roomCollection.find(query, options).toArray();
@@ -147,6 +148,13 @@ async function run() {
          const result = await bookingCollection.updateOne(query, updateDoc, options);
          res.send(result)
       });
+
+      app.post('/reviews', async(req, res)=>{
+         const courser =  req.body;
+         const result = await reviewCollection.insertOne(courser);
+         res.send(result);
+
+      })
 
       await client.db("admin").command({ ping: 1 });
       console.log("Pinged your deployment. You successfully connected to MongoDB!");
