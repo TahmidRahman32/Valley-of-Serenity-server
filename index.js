@@ -9,8 +9,8 @@ const port = process.env.PORT || 5000;
 
 app.use(
    cors({
-      origin: ["http://localhost:5173"],
-      witCredentials: true,
+      origin: ["http://localhost:5173", "http://localhost:5174"],
+      credentials: true,
    })
 );
 app.use(express.json());
@@ -27,31 +27,67 @@ const client = new MongoClient(uri, {
    },
 });
 
+
+const verifyToken =  async (req, res, next) =>{
+   const token = req?.cookies?.token;
+   console.log('token tooook', token)
+   if(!token){
+     
+      return res.status(401).send({message: 'not authorized'})
+   }
+   jwt.verify(token, process.env.SECRET_KEY_TOKEN, (err, decoded)=>{
+      if(err){
+          console.log(err);
+         return res.status(401).send({message: "unauthorized"})
+      }
+      console.log('value in the token', decoded);
+      req.user = decoded;
+        next();
+   });
+
+ 
+
+}
 async function run() {
    try {
       // Connect the client to the server	(optional starting in v4.7)
       await client.connect();
 
-      app.post("/jwt", async (req, res) => {
-         const user = req.body;
-         console.log(user);
-         const token = jwt.sign(user, process.env.SECRET_KEY_TOKEN, { expiresIn: "1h" });
-         res
-         .cookie("token", token, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "none",
-         }).send({ success: true });
-      });
+    
       // Send a ping to confirm a successful connection
       const roomCollection = client.db("Hotel").collection("rooms");
       const bookingCollection = client.db("Hotel").collection("booking");
+
+        app.post("/jwt", async (req, res) => {
+           const user = req.body;
+           const token = jwt.sign(user,process.env.SECRET_KEY_TOKEN, { expiresIn: "1h" });
+           res.cookie("token", token, {
+              httpOnly: true,
+              secure: false,
+           })
+           .send({success: true})
+        });
 
       app.get("/rooms", async (req, res) => {
          const courser = roomCollection.find();
          const result = await courser.toArray();
          res.send(result);
       });
+      app.get('/roomSort',async(req, res)=>{
+         const query = { price_per_night: { $gt: 120 } };
+        
+         // const result =  courser
+           const options = {
+              // Sort returned documents in ascending order by title (A->Z)
+              sort: { title: 1, price_per_night: 0 },
+              // Include only the `title` and `imdb` fields in each returned document
+              projection: { title: 1,  },
+           };
+            const result = await roomCollection.find(query, options).toArray();
+         // console.log(query);
+          res.send(result);
+      })
+   
 
       app.get("/room/:id", async (req, res) => {
          const id = req.params.id;
@@ -66,9 +102,13 @@ async function run() {
          res.send(result);
       });
 
-      app.get("/bookings", async (req, res) => {
+      app.get("/bookings", verifyToken, async (req, res) => {
          let query = {};
-         console.log('token',req.cookies.token)
+         // console.log('token',req.cookies.token)
+          console.log("value in the token", req.user);
+          if(req.query.email !== req.user.email){
+            return res.status(403).send({message: "forbidden access"})
+          }
 
          if (req.query?.email) {
             query = { email: req.query.email };
@@ -85,17 +125,26 @@ async function run() {
          res.send(result);
       });
 
+      app.get('/bookings/:id',async(req,res)=>{
+         const id = req.params.id;
+         const query = {_id: new ObjectId(id)};
+         const result =await bookingCollection.findOne(query);
+         res.send(result);
+      })
+
       app.put("/bookings/:id", async (req, res) => {
          const id = req.params.id;
          const query = { _id: new ObjectId(id) };
+         const options = { upsert: true };
          const updateBooking = req.body;
+         console.log(updateBooking);
          const updateDoc = {
             $set: {
                date: updateBooking.date,
                guest: updateBooking.guest,
             },
          };
-         const result = await bookingCollection.updateOne(query, updateDoc);
+         const result = await bookingCollection.updateOne(query, updateDoc, options);
          res.send(result)
       });
 
