@@ -154,6 +154,9 @@ async function run() {
          const result = await reviewCollection.insertOne(courser);
          res.send(result);
 
+      });
+      app.get('/reviews',async(req, res)=>{
+         
       })
 
       await client.db("admin").command({ ping: 1 });
