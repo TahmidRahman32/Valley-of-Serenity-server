@@ -156,7 +156,8 @@ async function run() {
 
       });
       app.get('/reviews',async(req, res)=>{
-         
+        const result = await reviewCollection.find().toArray();
+        res.send(result)  
       })
 
       await client.db("admin").command({ ping: 1 });
